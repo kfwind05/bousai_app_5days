@@ -4,31 +4,347 @@
   <meta charset="utf-8">
   <title>{% block title %}防災アプリ{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --header-blue: #0d4d8f;
+      --page-bg: #edf0f2;
+      --panel-bg: #f4f5f7;
+      --panel-border: #dfe5ea;
+      --text-main: #1f2937;
+      --text-sub: #5b6470;
+      --blue: #1a73d2;
+      --green: #2eaf5a;
+      --shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", "Segoe UI", sans-serif;
+      background: var(--page-bg);
+      color: var(--text-main);
+      letter-spacing: 0.02em;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .app-header {
+      position: relative;
+      background: var(--header-blue);
+      height: 72px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+    }
+
+    .brand {
+      color: #fff;
+      font-size: clamp(1.45rem, 1.8vw, 2.1rem);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      margin-left: 10px;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+    }
+
+    .menu-button {
+      appearance: none;
+      background: transparent;
+      border: none;
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      padding: 0;
+      margin-right: 6px;
+    }
+
+    .menu-button span {
+      width: 28px;
+      height: 3px;
+      border-radius: 2px;
+      background: white;
+      display: block;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .menu-button.is-open span:nth-child(1) {
+      transform: translateY(8px) rotate(45deg);
+    }
+
+    .menu-button.is-open span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .menu-button.is-open span:nth-child(3) {
+      transform: translateY(-8px) rotate(-45deg);
+    }
+
+    .app-menu {
+      position: absolute;
+      top: 72px;
+      right: 18px;
+      min-width: 200px;
+      background: rgba(255, 255, 255, 0.98);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 10px 0;
+      display: none;
+      z-index: 30;
+      border: 1px solid rgba(13, 77, 143, 0.08);
+    }
+
+    .app-menu.is-open {
+      display: block;
+    }
+
+    .app-menu a {
+      display: block;
+      padding: 12px 18px;
+      color: var(--text-main);
+      font-size: 0.98rem;
+      white-space: nowrap;
+    }
+
+    .app-menu a:hover {
+      background: rgba(26, 115, 210, 0.06);
+    }
+
+    .page-wrap {
+      max-width: 980px;
+      margin: 34px auto 0;
+      padding: 0 16px 32px;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.7) inset;
+      overflow: hidden;
+    }
+
+    .map-panel {
+      padding: 18px 18px 14px;
+      background: rgba(246, 247, 249, 0.9);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: clamp(1.2rem, 1.6vw, 1.8rem);
+      color: #0d4d8f;
+      font-weight: 700;
+      margin: 0 0 14px 8px;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+      letter-spacing: 0.02em;
+    }
+
+    .section-title .title-icon,
+    .weather-title .title-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+
+    .title-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .map-box {
+      width: 100%;
+      height: 360px;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(19, 60, 110, 0.1);
+      background: #dfeef5;
+      position: relative;
+    }
+
+    #shelterMap {
+      width: 100%;
+      height: 100%;
+      background: #dfeef5;
+    }
+
+    .leaflet-control-zoom {
+      border: none !important;
+      box-shadow: none !important;
+      margin-left: 12px !important;
+      margin-top: 12px !important;
+    }
+
+    .leaflet-control-zoom a {
+      width: 34px !important;
+      height: 34px !important;
+      line-height: 34px !important;
+      font-size: 22px !important;
+      color: #3b4a5b !important;
+      background: rgba(255,255,255,0.85) !important;
+      border: 1px solid rgba(0,0,0,0.08) !important;
+    }
+
+    .weather-panel {
+      margin-top: 22px;
+      padding: 18px 20px 6px;
+    }
+
+    .weather-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid rgba(13,77,143,0.18);
+      padding: 2px 6px 12px;
+      margin-bottom: 12px;
+    }
+
+    .weather-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: clamp(1.1rem, 1.4vw, 1.8rem);
+      font-weight: 700;
+      color: #0d4d8f;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+      letter-spacing: 0.01em;
+    }
+
+    .auto-update {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #1e9d52;
+      font-weight: 700;
+      font-size: 0.92rem;
+      white-space: nowrap;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+    }
+
+    .weather-content {
+      padding: 8px 6px 18px;
+      color: var(--text-main);
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+    }
+
+    .weather-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      margin: 12px 0 10px;
+      color: #0d4d8f;
+      font-weight: 700;
+    }
+
+    .weather-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.03rem;
+      margin: 8px 0;
+      color: #1bb26b;
+      font-weight: 700;
+    }
+
+    .weather-status.sub {
+      color: #586272;
+      font-size: 0.97rem;
+      margin-left: 0;
+      padding-left: 4px;
+      font-weight: 500;
+    }
+
+    .mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .mark.blue { background: rgba(20, 118, 255, 0.12); color: #1a73d2; }
+    .mark.green { background: rgba(16, 175, 90, 0.10); color: #19a759; }
+    .mark.gray { background: rgba(88, 98, 114, 0.12); color: #586272; }
+
+    @media (max-width: 640px) {
+      .header-inner { padding: 0 12px; }
+      .page-wrap { margin-top: 18px; }
+      .weather-header { flex-direction: column; align-items: flex-start; }
+      .auto-update { white-space: normal; }
+    }
+  </style>
 </head>
 <body>
-  <!-- ヘッダー -->
-  <h1>防災アプリ</h1>
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">防災アプリ</div>
+      <button class="menu-button" id="menuButton" type="button" aria-label="メニューを開く" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+    <nav class="app-menu" id="appMenu" aria-label="メニュー">
+      <a href="/">ホーム</a>
+      <a href="/shelter_search">避難所検索</a>
+      <a href="/shelter_register">避難所登録</a>
+      <a href="/board">指示・発信ボード</a>
+      {% if session.logged_in %}
+        <a href="/logout">ログアウト</a>
+      {% else %}
+        <a href="/login">ログイン</a>
+      {% endif %}
+    </nav>
+  </header>
 
-  <!-- ナビゲーション -->
-  <nav>
-    <a href="/">ホーム</a> |
-    <a href="/shelter_search">避難所検索</a> |
-    <a href="/shelter_register">避難所登録</a> |
-    <a href="/board">指示・発信ボード</a>
-    ｜
-    {% if session.logged_in %}
-      ログイン中{% if session.username %}（{{ session.username }}）{% endif %}
-      <a href="/logout">ログアウト</a>
-    {% else %}
-      未ログイン
-      <a href="/login">ログイン</a>
-    {% endif %}
-  </nav>
-  <hr>
-
-  <main>
-    <!-- ここに子テンプレートの content が入る -->
+  <main class="page-wrap">
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+    const menuButton = document.getElementById('menuButton');
+    const appMenu = document.getElementById('appMenu');
+    if (menuButton && appMenu) {
+      menuButton.addEventListener('click', function () {
+        const isOpen = appMenu.classList.toggle('is-open');
+        menuButton.classList.toggle('is-open', isOpen);
+        menuButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+
+      document.addEventListener('click', function (event) {
+        if (!appMenu.contains(event.target) && !menuButton.contains(event.target)) {
+          appMenu.classList.remove('is-open');
+          menuButton.classList.remove('is-open');
+          menuButton.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+  </script>
 </body>
 </html>
