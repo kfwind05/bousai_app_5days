@@ -35,6 +35,15 @@ WARNING_URL = (
     f"https://www.jma.go.jp/bosai/warning/data/r8/{PREFECTURE_CODE}.json"
 )
 
+DISASTER_TYPES = (
+    "地震",
+    "津波",
+    "洪水",
+    "土砂災害",
+    "高潮",
+    "大規模な火事",
+)
+
 JST = timezone(timedelta(hours=9))
 
 # 警報・注意報のコード一覧
@@ -148,9 +157,42 @@ def format_report_time(iso_str):
         return iso_str
 
 
-def filter_shelters(district=None):
-    """district 指定があれば一致する避難所のみ、なければ全件を返す"""
-    return [s for s in shelters if not district or s.get('district') == district]
+def filter_shelters(
+    district=None,
+    disaster_type=None,
+    pets_allowed=False,
+    barrier_free=False,
+    keyword=None,
+):
+    """指定された地区・災害種別・設備条件に一致する避難所を返す"""
+    normalized_keyword = keyword.strip().casefold() if keyword else ''
+    return [
+        shelter for shelter in shelters
+        if (not district or shelter.get('district') == district)
+        and (
+            not normalized_keyword
+            or normalized_keyword in str(shelter.get('name', '')).casefold()
+        )
+        and (
+            not disaster_type
+            or (
+                isinstance(shelter.get('disaster_types'), list)
+                and disaster_type in shelter['disaster_types']
+            )
+        )
+        and (not pets_allowed or shelter.get('pets_allowed') is True)
+        and (not barrier_free or shelter.get('barrier_free') is True)
+    ]
+
+
+def get_shelter_districts():
+    """登録済み避難所の地区名を重複なく返す"""
+    districts = set()
+    for shelter in shelters:
+        district = shelter.get('district')
+        if isinstance(district, str) and district.strip():
+            districts.add(district.strip())
+    return sorted(districts, key=str.casefold)
 
 
 def parse_area_warnings(warning_data):
@@ -291,27 +333,120 @@ def logout():
 @login_required
 def shelter_register():
     if request.method == 'POST':
+        action = request.form.get('action', 'register')
+        disaster_types = [
+            disaster_type for disaster_type in request.form.getlist('disaster_types')
+            if disaster_type in DISASTER_TYPES
+        ]
+
+        if action == 'update':
+            try:
+                shelter_id = int(request.form.get('shelter_id', ''))
+            except ValueError:
+                shelter_id = None
+
+            shelter = next(
+                (item for item in shelters if item.get('id') == shelter_id),
+                None,
+            )
+            if shelter is None:
+                return render_template(
+                    'shelter_register.html',
+                    shelters=shelters,
+                    disaster_types=DISASTER_TYPES,
+                    error=True,
+                    message='避難所が見つかりません。',
+                )
+
+            shelter['disaster_types'] = disaster_types
+            if 'district' in request.form:
+                district = request.form.get('district', '').strip()
+                if district:
+                    shelter['district'] = district
+                else:
+                    shelter.pop('district', None)
+            save_shelters()
+            return render_template(
+                'shelter_register.html',
+                shelters=shelters,
+                disaster_types=DISASTER_TYPES,
+                success=True,
+                message=f'「{shelter.get("name", "避難所")}」の対応災害種別を更新しました。',
+            )
+
+        if action != 'register':
+            return render_template(
+                'shelter_register.html',
+                shelters=shelters,
+                disaster_types=DISASTER_TYPES,
+                error=True,
+                message='不正な操作です。',
+            )
+
         name = request.form.get('name', '').strip()
+        district = request.form.get('district', '').strip()
         if not name:
-            return render_template('shelter_register.html', error=True, message='避難所名を入力してください。')
+            return render_template(
+                'shelter_register.html',
+                shelters=shelters,
+                disaster_types=DISASTER_TYPES,
+                error=True,
+                message='避難所名を入力してください。',
+            )
 
         # 重複防止のため、既存名を確認
         if not any(s.get('name') == name for s in shelters):
             shelters.append({
                 'id': (max((s.get('id', 0) for s in shelters), default=0) + 1),
                 'name': name,
+                'disaster_types': disaster_types,
+                **({'district': district} if district else {}),
             })
             save_shelters()
-            return render_template('shelter_register.html', success=True, message=f'避難所「{name}」を登録しました。')
+            return render_template(
+                'shelter_register.html',
+                shelters=shelters,
+                disaster_types=DISASTER_TYPES,
+                success=True,
+                message=f'避難所「{name}」を登録しました。',
+            )
 
-        return render_template('shelter_register.html', error=True, message=f'避難所「{name}」はすでに登録されています。')
+        return render_template(
+            'shelter_register.html',
+            shelters=shelters,
+            disaster_types=DISASTER_TYPES,
+            error=True,
+            message=f'避難所「{name}」はすでに登録されています。',
+        )
 
-    return render_template('shelter_register.html')
+    return render_template(
+        'shelter_register.html',
+        shelters=shelters,
+        disaster_types=DISASTER_TYPES,
+    )
 
 # 避難所検索ページ
 @app.route('/shelter_search')
 def shelter_search():
-    return render_template('shelter_search.html')
+    disaster_type = request.args.get('disaster_type', '')
+    if disaster_type not in DISASTER_TYPES:
+        disaster_type = ''
+
+    districts = get_shelter_districts()
+    district = request.args.get('district', '')
+    if district not in districts:
+        district = ''
+
+    return render_template(
+        'shelter_search.html',
+        disaster_types=DISASTER_TYPES,
+        districts=districts,
+        selected_district=district,
+        keyword=request.args.get('keyword', '').strip(),
+        selected_disaster_type=disaster_type,
+        pets_allowed=request.args.get('pets_allowed') == 'true',
+        barrier_free=request.args.get('barrier_free') == 'true',
+    )
 
 # 全施設一覧ページ
 @app.route('/all_shelters')
@@ -329,13 +464,72 @@ def board():
 # 検索結果ページ：templates/search_results.html を返す
 @app.route('/search_results')
 def search_results():
-    results = filter_shelters(request.args.get('district'))
-    return render_template('search_results.html', results=results)
+    district = request.args.get('district') or None
+    keyword = request.args.get('keyword', '').strip()
+    disaster_type = request.args.get('disaster_type')
+    valid_districts = get_shelter_districts()
+    invalid_district = district is not None and district not in valid_districts
+    invalid_disaster_type = (
+        disaster_type is not None
+        and disaster_type not in DISASTER_TYPES
+    )
+    pets_allowed = request.args.get('pets_allowed') == 'true'
+    barrier_free = request.args.get('barrier_free') == 'true'
+    invalid_equipment_filter = any(
+        value not in (None, 'true')
+        for value in (
+            request.args.get('pets_allowed'),
+            request.args.get('barrier_free'),
+        )
+    )
+    results = (
+        []
+        if invalid_district or invalid_disaster_type or invalid_equipment_filter
+        else filter_shelters(
+            district,
+            disaster_type,
+            pets_allowed,
+            barrier_free,
+            keyword,
+        )
+    )
+    return render_template(
+        'search_results.html',
+        results=results,
+        district=district if not invalid_district else None,
+        keyword=keyword,
+        disaster_type=disaster_type if not invalid_disaster_type else None,
+        invalid_district=invalid_district,
+        invalid_disaster_type=invalid_disaster_type,
+        pets_allowed=pets_allowed,
+        barrier_free=barrier_free,
+        invalid_equipment_filter=invalid_equipment_filter,
+    )
 
-# JSON API：/shelters?district=地区名
+# JSON API：地区・災害種別・設備条件・避難所名キーワードで絞り込む
 @app.route('/shelters', methods=['GET'])
 def get_shelters():
-    results = filter_shelters(request.args.get('district'))
+    disaster_type = request.args.get('disaster_type')
+    if disaster_type is not None and disaster_type not in DISASTER_TYPES:
+        return jsonify({'error': 'Invalid disaster type'}), 400
+
+    district = request.args.get('district') or None
+    if district is not None and district not in get_shelter_districts():
+        return jsonify({'error': 'Invalid district'}), 400
+
+    equipment_filters = {}
+    for parameter in ('pets_allowed', 'barrier_free'):
+        value = request.args.get(parameter)
+        if value not in (None, 'true'):
+            return jsonify({'error': f'Invalid {parameter} filter'}), 400
+        equipment_filters[parameter] = value == 'true'
+
+    results = filter_shelters(
+        district,
+        disaster_type,
+        **equipment_filters,
+        keyword=request.args.get('keyword'),
+    )
 
     if not results:
         # 見つからなければエラー JSON を返す

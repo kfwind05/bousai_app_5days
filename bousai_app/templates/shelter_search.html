@@ -1,8 +1,203 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>避難所検索</h2>
-<p>登録されている避難所を確認できます。</p>
+<style>
+  .shelter-search-panel {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 24px;
+    background: #fff;
+    border: 1px solid #dfe5ea;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
 
-<p><a href="/all_shelters">全施設一覧</a></p>
+  .shelter-search-panel h2 {
+    margin: 0 0 8px;
+    color: #0d4d8f;
+  }
+
+  .shelter-search-description,
+  .shelter-search-help {
+    color: #5b6470;
+    line-height: 1.7;
+  }
+
+  .shelter-search-form {
+    margin-top: 24px;
+  }
+
+  .shelter-search-form label {
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .shelter-search-form select {
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #aebac6;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f2937;
+    font: inherit;
+  }
+
+  .shelter-search-form input[type="search"] {
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #aebac6;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f2937;
+    font: inherit;
+  }
+
+  .search-field {
+    margin-bottom: 20px;
+  }
+
+  .shelter-search-help {
+    margin: 8px 0 18px;
+    font-size: 0.92rem;
+  }
+
+  .shelter-search-button {
+    min-height: 46px;
+    padding: 10px 24px;
+    border: 0;
+    border-radius: 8px;
+    background: #1a73d2;
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .shelter-search-button:hover {
+    background: #155eae;
+  }
+
+  .shelter-search-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .shelter-search-reset {
+    min-height: 46px;
+    padding: 10px 18px;
+    border: 1px solid #aebac6;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f2937;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .shelter-search-reset:hover {
+    background: #f1f4f7;
+  }
+
+  .equipment-options {
+    display: grid;
+    gap: 10px;
+    margin: 22px 0;
+    padding: 16px;
+    border: 1px solid #dfe5ea;
+    border-radius: 8px;
+  }
+
+  .equipment-options legend {
+    padding: 0 6px;
+    font-weight: 700;
+  }
+
+  .equipment-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 36px;
+    cursor: pointer;
+  }
+
+  .equipment-option input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: #1a73d2;
+  }
+
+  .all-shelters-link {
+    display: inline-block;
+    margin-top: 20px;
+    color: #155eae;
+    text-decoration: underline;
+  }
+
+  @media (max-width: 640px) {
+    .shelter-search-panel { padding: 20px 16px; }
+    .shelter-search-button { width: 100%; }
+  }
+</style>
+
+<section class="shelter-search-panel" aria-labelledby="shelter-search-title">
+  <h2 id="shelter-search-title">避難所検索</h2>
+  <p class="shelter-search-description">
+    地区や避難所名でも検索できます。地区が分からない場合は、避難所名の一部を入力してください。
+  </p>
+
+  <form class="shelter-search-form" method="get" action="{{ url_for('search_results') }}">
+    <div class="search-field">
+      <label for="district">地区</label>
+      <select id="district" name="district">
+        <option value="">すべての地区</option>
+        {% for district in districts %}
+        <option value="{{ district }}" {% if selected_district == district %}selected{% endif %}>{{ district }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="search-field">
+      <label for="keyword">避難所名</label>
+      <input
+        type="search"
+        id="keyword"
+        name="keyword"
+        value="{{ keyword }}"
+        placeholder="避難所名の一部を入力"
+        autocomplete="off"
+      >
+    </div>
+
+    <label for="disaster-type">災害種別</label>
+    <select id="disaster-type" name="disaster_type" required aria-describedby="disaster-type-help">
+      <option value="" disabled {% if not selected_disaster_type %}selected{% endif %}>災害種別を選択してください</option>
+      {% for disaster_type in disaster_types %}
+      <option value="{{ disaster_type }}" {% if selected_disaster_type == disaster_type %}selected{% endif %}>{{ disaster_type }}</option>
+      {% endfor %}
+    </select>
+    <p class="shelter-search-help" id="disaster-type-help">災害の種類によって、安全な避難所は異なります。</p>
+    <fieldset class="equipment-options">
+      <legend>設備条件（複数選択できます）</legend>
+      <label class="equipment-option">
+        <input type="checkbox" name="pets_allowed" value="true" {% if pets_allowed %}checked{% endif %}>
+        ペット可
+      </label>
+      <label class="equipment-option">
+        <input type="checkbox" name="barrier_free" value="true" {% if barrier_free %}checked{% endif %}>
+        バリアフリー
+      </label>
+    </fieldset>
+    <div class="shelter-search-actions">
+      <button class="shelter-search-button" type="submit">検索する</button>
+      <button class="shelter-search-reset" type="reset">条件をクリア</button>
+    </div>
+  </form>
+
+  <a class="all-shelters-link" href="{{ url_for('all_shelters') }}">全施設一覧を見る</a>
+</section>
 {% endblock %}

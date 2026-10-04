@@ -3,18 +3,52 @@
 {% block content %}
 <h2>検索結果</h2>
 
-{% if results %}
-  <ul>
-    {% for shelter in results %}
-    <li>{{ shelter.name }}</li>
-    {% endfor %}
-  </ul>
+{% if invalid_disaster_type %}
+  <p role="alert">指定された災害種別は選択できません。検索画面から選び直してください。</p>
+{% elif invalid_equipment_filter %}
+  <p role="alert">指定された設備条件が正しくありません。検索画面から選び直してください。</p>
+{% elif invalid_district %}
+  <p role="alert">指定された地区は選択できません。検索画面から選び直してください。</p>
 {% else %}
-  <p>該当する避難所が見つかりませんでした</p>
+  {% if district %}
+    <p>地区：{{ district }}</p>
+  {% endif %}
+  {% if keyword %}
+    <p>避難所名：「{{ keyword }}」を含む</p>
+  {% endif %}
+  {% if disaster_type %}
+    <p>災害種別：{{ disaster_type }}</p>
+  {% endif %}
+  {% if pets_allowed or barrier_free %}
+    <p>設備条件：
+      {% if pets_allowed %}ペット可{% endif %}
+      {% if pets_allowed and barrier_free %}、{% endif %}
+      {% if barrier_free %}バリアフリー{% endif %}
+    </p>
+  {% endif %}
+
+  {% if results %}
+    <ul>
+      {% for shelter in results %}
+      <li>
+        {{ shelter.name }}
+        {% if shelter.get('disaster_types') %}
+          （対応：{{ shelter.disaster_types | join('、') }}）
+        {% else %}
+          （対応災害種別未登録）
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  {% elif district or keyword or disaster_type or pets_allowed or barrier_free %}
+    <p>指定した条件に該当する避難所が見つかりませんでした。対応種別・設備情報が未登録の避難所は表示されません。</p>
+  {% else %}
+    <p>該当する避難所が見つかりませんでした</p>
+  {% endif %}
 {% endif %}
 
 <p>
-  <a href="/shelter_search">検索画面に戻る</a> |
+  <a href="{{ url_for('shelter_search', district=district, keyword=keyword, disaster_type=disaster_type, pets_allowed='true' if pets_allowed else None, barrier_free='true' if barrier_free else None) }}">検索画面に戻る</a> |
   <a href="/">トップページへ戻る</a>
 </p>
 {% endblock %}

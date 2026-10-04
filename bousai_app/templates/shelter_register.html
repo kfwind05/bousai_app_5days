@@ -14,10 +14,61 @@
 {% endif %}
 
 <form method="POST">
+  <input type="hidden" name="action" value="register">
   <p>
     <label for="name">避難所名（必須）</label><br>
     <input type="text" id="name" name="name">
   </p>
+  <p>
+    <label for="district">地区（任意）</label><br>
+    <input type="text" id="district" name="district">
+  </p>
+  <fieldset>
+    <legend>対応する災害種別</legend>
+    <p>対応する災害種別を選択してください。未選択の場合、災害種別検索には表示されません。</p>
+    {% for disaster_type in disaster_types %}
+    <label>
+      <input type="checkbox" name="disaster_types" value="{{ disaster_type }}">
+      {{ disaster_type }}
+    </label><br>
+    {% endfor %}
+  </fieldset>
   <p><button type="submit">登録</button></p>
 </form>
+
+<h3>登録済み避難所の対応種別</h3>
+{% if shelters %}
+  {% for shelter in shelters %}
+  <form method="POST">
+    <input type="hidden" name="action" value="update">
+    <input type="hidden" name="shelter_id" value="{{ shelter.id }}">
+    <fieldset>
+      <legend>{{ shelter.name }}</legend>
+      <p>
+        <label for="district-{{ shelter.id }}">地区（任意）</label><br>
+        <input
+          type="text"
+          id="district-{{ shelter.id }}"
+          name="district"
+          value="{{ shelter.get('district', '') }}"
+        >
+      </p>
+      {% for disaster_type in disaster_types %}
+      <label>
+        <input
+          type="checkbox"
+          name="disaster_types"
+          value="{{ disaster_type }}"
+          {% if disaster_type in shelter.get('disaster_types', []) %}checked{% endif %}
+        >
+        {{ disaster_type }}
+      </label><br>
+      {% endfor %}
+      <button type="submit">対応種別を更新</button>
+    </fieldset>
+  </form>
+  {% endfor %}
+{% else %}
+  <p>登録済みの避難所はありません。</p>
+{% endif %}
 {% endblock %}
